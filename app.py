@@ -5,6 +5,7 @@ import pickle
 import os
 import matplotlib.pyplot as plt
 import seaborn as sns
+import mlflow.sklearn
 
 # Set page configuration
 st.set_page_config(
@@ -47,6 +48,12 @@ st.markdown("""
         margin-top: 10px;
         text-align: center;
     }
+    .mlflow-info {
+        background-color: #E3F2FD;
+        padding: 10px;
+        border-radius: 5px;
+        margin-top: 10px;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -54,13 +61,36 @@ st.markdown("""
 @st.cache_resource
 def load_model_and_encoders():
     try:
-        with open("customer_churn_model.pkl", "rb") as f:
-            model_data = pickle.load(f)
-        
+        # Load encoders from pickle file
         with open("encoders.pkl", "rb") as f:
             encoders = pickle.load(f)
+        
+        # Load model from MLflow
+        run_id = "7aa546d272c74334aa1dc55f4942df2d"  # Best Model - Random Forest
+        model_uri = f"runs:/{run_id}/random_forest_model"
+        
+        try:
+            # Try to load the model from MLflow
+            model = mlflow.sklearn.load_model(model_uri)
+            st.sidebar.success("Model loaded from MLflow successfully!")
             
-        return model_data, encoders
+            # Get feature names from the model
+            # For MLflow models, we need to extract feature names differently
+            # We'll use the pickle file as a backup for feature names
+            with open("customer_churn_model.pkl", "rb") as f:
+                model_data = pickle.load(f)
+                feature_names = model_data["features_names"]
+            
+            return {"model": model, "features_names": feature_names}, encoders
+        except Exception as e:
+            st.sidebar.warning(f"Failed to load model from MLflow: {e}")
+            st.sidebar.info("Falling back to pickle model...")
+            
+            # Fallback to pickle model if MLflow model loading fails
+            with open("customer_churn_model.pkl", "rb") as f:
+                model_data = pickle.load(f)
+            return model_data, encoders
+            
     except Exception as e:
         st.error(f"Error loading model or encoders: {e}")
         return None, None
@@ -79,6 +109,14 @@ if model_data is not None and encoders is not None:
     This application predicts whether a customer will churn (leave) or not based on various features.
     Fill in the customer information below and click 'Predict' to see the result.
     """)
+    
+    # MLflow information
+    st.markdown("""
+    <div class="mlflow-info">
+        <h3>🚀 MLflow Integration</h3>
+        <p>This app uses MLflow to load the trained model. MLflow provides model versioning, tracking, and deployment capabilities.</p>
+    </div>
+    """, unsafe_allow_html=True)
     
     # Create tabs for different sections
     tab1, tab2, tab3 = st.tabs(["Prediction", "Model Information", "Sample Data"])
@@ -260,6 +298,22 @@ if model_data is not None and encoders is not None:
         
         # Display model information
         st.write(f"**Model Type:** {type(loaded_model).__name__}")
+        
+        # MLflow information
+        st.subheader("MLflow Integration")
+        st.write("""
+        This application uses MLflow to manage the machine learning lifecycle. The model is loaded directly from the MLflow model registry.
+        
+        **Benefits of MLflow integration:**
+        - Model versioning and tracking
+        - Reproducibility of results
+        - Easy deployment and serving
+        - Centralized model management
+        """)
+        
+        # Run ID information
+        st.write(f"**MLflow Run ID:** 7aa546d272c74334aa1dc55f4942df2d")
+        st.write(f"**Model URI:** runs:/7aa546d272c74334aa1dc55f4942df2d/random_forest_model")
         
         # Model parameters
         st.subheader("Model Parameters")
