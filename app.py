@@ -5,7 +5,6 @@ import pickle
 import os
 import matplotlib.pyplot as plt
 import seaborn as sns
-import mlflow.sklearn
 
 # Set page configuration
 st.set_page_config(
@@ -19,9 +18,13 @@ st.markdown("""
 <style>
     .main-header {
         font-size: 2.5rem;
-        color: #1E88E5;
+        color: #0D47A1;
         text-align: center;
         margin-bottom: 1rem;
+        font-weight: bold;
+        text-shadow: 1px 1px 2px rgba(0,0,0,0.1);
+        padding: 10px;
+        border-bottom: 2px solid #1E88E5;
     }
     .sub-header {
         font-size: 1.5rem;
@@ -49,10 +52,20 @@ st.markdown("""
         text-align: center;
     }
     .mlflow-info {
-        background-color: #E3F2FD;
+        background-color: #0D47A1;
         padding: 10px;
         border-radius: 5px;
         margin-top: 10px;
+        color: white;
+    }
+    
+    .mlflow-info h3 {
+        color: white;
+        font-weight: bold;
+    }
+    
+    .mlflow-info p {
+        color: white;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -65,31 +78,30 @@ def load_model_and_encoders():
         with open("encoders.pkl", "rb") as f:
             encoders = pickle.load(f)
         
-        # Load model from MLflow
-        run_id = "7aa546d272c74334aa1dc55f4942df2d"  # Best Model - Random Forest
-        model_uri = f"runs:/{run_id}/random_forest_model"
+        # Skip MLflow attempt and directly load from pickle
+        st.sidebar.info("Loading model from pickle file...")
         
+        # Check for tuned model first
         try:
-            # Try to load the model from MLflow
-            model = mlflow.sklearn.load_model(model_uri)
-            st.sidebar.success("Model loaded from MLflow successfully!")
-            
-            # Get feature names from the model
-            # For MLflow models, we need to extract feature names differently
-            # We'll use the pickle file as a backup for feature names
-            with open("customer_churn_model.pkl", "rb") as f:
+            with open("customer_churn_model_tuned_random_forest.pkl", "rb") as f:
                 model_data = pickle.load(f)
-                feature_names = model_data["features_names"]
-            
-            return {"model": model, "features_names": feature_names}, encoders
+                st.sidebar.success("Loaded tuned Random Forest model from pickle!")
+                
+                # Ensure format compatibility
+                if isinstance(model_data, dict) and "model" in model_data:
+                    return model_data, encoders
+                else:
+                    # Handle the case where the pickle structure is different
+                    return {"model": model_data, "features_names": list(encoders.keys())}, encoders
         except Exception as e:
-            st.sidebar.warning(f"Failed to load model from MLflow: {e}")
-            st.sidebar.info("Falling back to pickle model...")
+            st.sidebar.warning(f"Could not load tuned model: {e}")
+            st.sidebar.info("Falling back to base model...")
             
-            # Fallback to pickle model if MLflow model loading fails
-            with open("customer_churn_model.pkl", "rb") as f:
-                model_data = pickle.load(f)
-            return model_data, encoders
+        # Fall back to regular model
+        with open("customer_churn_model.pkl", "rb") as f:
+            model_data = pickle.load(f)
+            st.sidebar.success("Loaded base model from pickle!")
+        return model_data, encoders
             
     except Exception as e:
         st.error(f"Error loading model or encoders: {e}")
@@ -110,11 +122,11 @@ if model_data is not None and encoders is not None:
     Fill in the customer information below and click 'Predict' to see the result.
     """)
     
-    # MLflow information
+    # Replace MLflow information with model information
     st.markdown("""
     <div class="mlflow-info">
-        <h3>🚀 MLflow Integration</h3>
-        <p>This app uses MLflow to load the trained model. MLflow provides model versioning, tracking, and deployment capabilities.</p>
+        <h3>🔍 Model Information</h3>
+        <p>This application uses a <strong>Random Forest classifier</strong> trained on telecom customer data to predict churn with high accuracy. The model analyzes customer behavior patterns and service usage to identify at-risk customers.</p>
     </div>
     """, unsafe_allow_html=True)
     
@@ -299,21 +311,15 @@ if model_data is not None and encoders is not None:
         # Display model information
         st.write(f"**Model Type:** {type(loaded_model).__name__}")
         
-        # MLflow information
-        st.subheader("MLflow Integration")
+        # Add overview of the model and its purpose
+        st.subheader("Model Overview")
         st.write("""
-        This application uses MLflow to manage the machine learning lifecycle. The model is loaded directly from the MLflow model registry.
+        This Random Forest model was trained to predict customer churn based on various customer characteristics
+        and usage patterns. The model analyzes factors such as contract type, tenure, monthly charges, and services
+        used to determine the likelihood of a customer leaving the service.
         
-        **Benefits of MLflow integration:**
-        - Model versioning and tracking
-        - Reproducibility of results
-        - Easy deployment and serving
-        - Centralized model management
+        The model was trained on historical customer data and achieved high accuracy and ROC-AUC scores on test data.
         """)
-        
-        # Run ID information
-        st.write(f"**MLflow Run ID:** 7aa546d272c74334aa1dc55f4942df2d")
-        st.write(f"**Model URI:** runs:/7aa546d272c74334aa1dc55f4942df2d/random_forest_model")
         
         # Model parameters
         st.subheader("Model Parameters")
